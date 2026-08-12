@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<title>Παιχνίδι Μνήμης</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f3f3f3;text-align:center;margin:0;padding:20px}
+h1{margin-bottom:10px}
+.controls{margin:15px auto}
+select,button{font-size:16px;padding:8px 12px;margin:5px;border-radius:6px;border:1px solid #aaa}
+#stats{margin:10px;font-size:18px}
+#board{display:grid;gap:8px;justify-content:center;margin:20px auto;overflow:auto;max-width:100%;}
+.card{width:140px;height:140px;perspective:600px;cursor:pointer}
+.card-inner{width:100%;height:100%;transition:transform .35s;transform-style:preserve-3d;position:relative}
+.card.flipped .card-inner{transform:rotateY(180deg)}
+.card-face{position:absolute;width:100%;height:100%;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:68px;backface-visibility:hidden}
+.front{background:#555;color:white}
+.back{background:white;transform:rotateY(180deg)}
+.message{font-size:22px;margin:15px}
+</style>
+</head>
+<body>
+<h1>🧠 Παιχνίδι Μνήμης</h1>
+
+<div class="controls">
+Γραμμές:
+<select id="rows"><option>4</option><option>6</option><option>8</option><option>10</option></select>
+Στήλες:
+<select id="cols"><option>4</option><option>6</option><option>8</option><option>10</option></select>
+Θέμα:
+<select id="theme">
+<option value="animals">Ζώα</option>
+<option value="faces">Πρόσωπα</option>
+<option value="food">Φαγητά</option>
+<option value="shapes">Σχήματα</option>
+</select>
+<button onclick="startGame()">Νέο Παιχνίδι</button>
+</div>
+
+<div id="stats">
+Κινήσεις: <span id="moves">0</span> |
+Χρόνος: <span id="time">0</span> δευτ.
+</div>
+
+<div id="board"></div>
+<div class="message" id="message"></div>
+
+<script>
+const themes={
+animals:[
+    "🐶","🐱","🐭","🐹","🦊","🐻","🐼","🐸",
+    "🐵","🐯","🦁","🐮","🐷","🐰","🐨","🐙",
+    "🦄","🐝","🦋","🐢","🐺","🦌","🦉","🦅",
+    "🐧","🐬","🦈","🐳","🦖","🐊","🦓","🦒",
+    "🐫","🦙","🐿️","🦔","🦥","🦦","🦚","🦜",
+    "🐘","🦏","🦛","🦘","🐪","🐃","🐂","🐄",
+    "🐎","🐖","🐑","🐐","🐓","🦃","🦆","🦢",
+    "🦩","🐍","🦎","🐠","🐟","🐡"
+],
+faces:["😀","😎","🥳","😍","🤓","😴","😇","🤩","😡","😱","🤠","🥶","😺","😸","😹","😻","🙃","😋","😜","🤖"],
+food:["🍎","🍌","🍇","🍉","🍕","🍔","🍟","🍩","🍪","🍰","🍓","🥝","🍒","🌮","🍿","🥨","🍞","🧀","🍫","🍭"],
+shapes:["⭐","❤️","🔷","🔶","⬛","🟢","🟣","🔺","🔵","🟡","💎","☀️","🌙","⚡","❄️","🔥","🌈","🍀","🎵","🎲"]
+};
+
+let first=null,second=null,lock=false,moves=0,seconds=0,timer;
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+
+function sound(freq,duration){
+ let o=audioCtx.createOscillator(),g=audioCtx.createGain();
+ o.frequency.value=freq;o.type="sine";
+ o.connect(g);g.connect(audioCtx.destination);
+ g.gain.setValueAtTime(.08,audioCtx.currentTime);
+ o.start();o.stop(audioCtx.currentTime+duration);
+}
+
+function startGame(){
+ clearInterval(timer);first=second=null;lock=false;moves=seconds=0;
+ document.getElementById("moves").textContent=0;
+ document.getElementById("time").textContent=0;
+ document.getElementById("message").textContent="";
+ let rows=+document.getElementById("rows").value;
+ let cols=+document.getElementById("cols").value;
+ let total=rows*cols;
+ let set=themes[document.getElementById("theme").value];
+ if(total/2>set.length){alert("Επιλέξτε μικρότερο ταμπλό.");return;}
+ let selected = shuffle([...set]).slice(0, total / 2);
+ let cards = shuffle([...selected, ...selected]);
+ let board=document.getElementById("board");
+ board.innerHTML="";
+ board.style.gridTemplateColumns=`repeat(${cols},140px)`;
+ timer=setInterval(()=>{seconds++;document.getElementById("time").textContent=seconds},1000);
+
+ cards.forEach(symbol=>{
+  let c=document.createElement("div");
+  c.className="card";c.dataset.symbol=symbol;
+  c.innerHTML='<div class="card-inner"><div class="card-face front">?</div><div class="card-face back">'+symbol+'</div></div>';
+  c.onclick=()=>flip(c);board.appendChild(c);
+ });
+}
+
+function flip(card){
+ if(lock||card.classList.contains("flipped"))return;
+ sound(500,.08);
+ card.classList.add("flipped");
+ if(!first)first=card;else{second=card;moves++;document.getElementById("moves").textContent=moves;check();}
+}
+
+function check(){
+ if(first.dataset.symbol===second.dataset.symbol){
+  sound(800,.12);first=second=null;
+  if(document.querySelectorAll(".flipped").length===document.querySelectorAll(".card").length){
+   clearInterval(timer);sound(1000,.25);
+   document.getElementById("message").textContent=`🎉 Μπράβο! Ολοκληρώθηκε σε ${moves} κινήσεις και ${seconds} δευτερόλεπτα.`;
+  }
+ }else{
+  sound(200,.15);lock=true;
+  setTimeout(()=>{first.classList.remove("flipped");second.classList.remove("flipped");first=second=null;lock=false},800);
+ }
+}
+function shuffle(a){return a.sort(()=>Math.random()-.5)}
+startGame();
+</script>
+</body>
+</html>
